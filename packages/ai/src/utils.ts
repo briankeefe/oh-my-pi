@@ -111,6 +111,15 @@ export function stripOpenAIResponsesOutputOnlyStatusesForReplay<TItem extends { 
 	return sanitized ?? items;
 }
 
+export function stripOpenAIResponsesInternalMetadataForReplay<TItem extends object>(
+	item: TItem,
+): Omit<TItem, "internal_chat_message_metadata_passthrough"> {
+	if (!Object.hasOwn(item, "internal_chat_message_metadata_passthrough")) return item;
+	const sanitized = { ...item } as TItem & Record<string, unknown>;
+	delete sanitized.internal_chat_message_metadata_passthrough;
+	return sanitized;
+}
+
 /**
  * Clamp `detail: "original"` only where Responses input_image parts live —
  * top-level items and `message.content[]`. Avoids a deep tree walk/clone of
@@ -614,7 +623,9 @@ function sanitizeOpenAIResponsesHistoryItemForReplay(
 	if (item.type === "reasoning") {
 		return sanitizeOpenAIResponsesReasoningItemForReplay(item, preserveReasoningItemIds);
 	}
-	const { id: _id, internal_chat_message_metadata_passthrough: _internalMetadata, ...sanitizedItem } = item;
+	const withoutInternalMetadata = stripOpenAIResponsesInternalMetadataForReplay(item);
+	const sanitizedItem = withoutInternalMetadata === item ? { ...item } : withoutInternalMetadata;
+	delete sanitizedItem.id;
 	if (item.type === "computer_call" && typeof item.id === "string") sanitizedItem.id = item.id;
 	if (item.type === "function_call") sanitizedItem.arguments = replayFunctionCallArguments(item);
 

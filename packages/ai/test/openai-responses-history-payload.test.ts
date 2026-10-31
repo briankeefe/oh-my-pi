@@ -8,6 +8,7 @@ import type { AssistantMessage, Context, Model, ModelSpec, ProviderSessionState,
 import {
 	createOpenAIResponsesHistoryPayload,
 	sanitizeOpenAIResponsesHistoryItemsForReplay,
+	stripOpenAIResponsesInternalMetadataForReplay,
 } from "@oh-my-pi/pi-ai/utils";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { type GeneratedProvider, getBundledModel } from "@oh-my-pi/pi-catalog/models";
@@ -435,6 +436,18 @@ function containsUserInputText(input: unknown[] | undefined, text: string): bool
 }
 
 describe("OpenAI responses history payload", () => {
+	it("only copies replay items that contain internal metadata", () => {
+		const item = Object.freeze({ type: "message", metadata: { turn_id: "turn_1" }, phase: "commentary" });
+		expect(stripOpenAIResponsesInternalMetadataForReplay(item)).toBe(item);
+		const metadata = Object.freeze({ content_token_count: 52 });
+		const stored = Object.freeze({ ...item, internal_chat_message_metadata_passthrough: metadata });
+		const replay = stripOpenAIResponsesInternalMetadataForReplay(stored);
+		expect(replay).not.toBe(stored);
+		expect(replay).toEqual(item);
+		expect(replay.metadata).toBe(stored.metadata);
+		expect(stored.internal_chat_message_metadata_passthrough).toBe(metadata);
+	});
+
 	it.each([
 		{ provider: "openai", snapshot: false },
 		{ provider: "openai", snapshot: true },

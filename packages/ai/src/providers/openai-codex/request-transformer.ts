@@ -2,6 +2,7 @@ import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { requireSupportedEffort } from "@oh-my-pi/pi-catalog/model-thinking";
 import { $env } from "@oh-my-pi/pi-utils";
 import type { Model } from "../../types";
+import { stripOpenAIResponsesInternalMetadataForReplay } from "../../utils";
 import { mapOpenAIReasoningEffort } from "../openai-shared";
 
 /** Reasoning replay scope for the Codex Responses API (`reasoning.context`). */
@@ -50,7 +51,6 @@ export interface InputItem {
 	type?: string | null;
 	role?: string;
 	content?: unknown;
-	internal_chat_message_metadata_passthrough?: unknown;
 	call_id?: string | null;
 	name?: string;
 	output?: unknown;
@@ -181,13 +181,11 @@ function filterInput(input: InputItem[] | undefined): InputItem[] | undefined {
 	return input
 		.filter(item => item.type !== "item_reference")
 		.map(item => {
-			const stripId = item.type !== "computer_call" && item.id != null;
-			if (stripId || Object.hasOwn(item, "internal_chat_message_metadata_passthrough")) {
-				const { internal_chat_message_metadata_passthrough: _internalMetadata, ...rest } = item;
-				if (stripId) delete rest.id;
-				return rest as InputItem;
-			}
-			return item;
+			const sanitized = stripOpenAIResponsesInternalMetadataForReplay(item);
+			if (item.type === "computer_call" || item.id == null) return sanitized;
+			const withoutId = sanitized === item ? { ...item } : sanitized;
+			delete withoutId.id;
+			return withoutId;
 		});
 }
 
